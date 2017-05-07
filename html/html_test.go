@@ -1,4 +1,4 @@
-package parser
+package html
 
 import (
 	"testing"
@@ -21,7 +21,7 @@ func TestFindNodes(t *testing.T) {
 </body>
     `
 	data := []byte(sourceData)
-	doc, err := BytesToHtmlDom(&data)
+	doc, err := BytesToHtmlDom(data)
 	if err != nil {
 		t.Error("Failed price html:", err.Error())
 	}

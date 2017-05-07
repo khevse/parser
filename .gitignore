@@ -1,2 +1,5 @@
 *.sublime-workspace
 *.db
+*.out
+*.exe
+Dockerfile
