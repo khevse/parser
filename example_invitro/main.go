@@ -1,8 +1,9 @@
 package main
 
 import (
-	"flag"
 	"log"
+	"os"
+	"time"
 
 	"github.com/khevse/parser/db"
 	"github.com/khevse/parser/engine"
@@ -13,40 +14,17 @@ import (
 	"gopkg.in/mgo.v2"
 )
 
-var (
-	pgConnection   string
-	pgSchema       string
-	mongoAddress   string
-	mongoDBName    string
-	swiftUser      string
-	swiftApiKey    string
-	swiftAuthUrl   string
-	swiftContainer string
-)
-
 func main() {
 	log.SetFlags(log.Ltime | log.Lmicroseconds | log.Lshortfile)
 
-	flag.Parse()
-	flag.StringVar(&pgConnection, "pg-conn", "", "")
-	flag.StringVar(&pgSchema, "pg-schema", "", "")
-	flag.StringVar(&mongoAddress, "mgo-address", "", "")
-	flag.StringVar(&mongoDBName, "mgo-dbname", "", "")
-	flag.StringVar(&swiftUser, "swift-user", "", "")
-	flag.StringVar(&swiftApiKey, "swift-api-key", "", "")
-	flag.StringVar(&swiftAuthUrl, "swift-auth-url", "", "")
-	flag.StringVar(&swiftContainer, "swift-container", "", "")
-
-	// pgConnection = "host=localhost port=5432 user=postgres dbname=postgres sslmode=disable"
-	// pgSchema = "invitro"
-
-	// mongoAddress = "localhost:27017"
-	// mongoDBName = "invitro"
-
-	// swiftUser = "test:tester"
-	// swiftApiKey = "testing"
-	// swiftAuthUrl = "http://127.0.0.1:12345/auth/v1.0"
-	// swiftContainer = "swift"
+	pgConnection := os.Getenv("PG_CONN")
+	pgSchema := os.Getenv("PG_SCHEMA")
+	mongoAddress := os.Getenv("MONGO_ADDRESS")
+	mongoDBName := os.Getenv("MONGO_DBNAME")
+	swiftUser := os.Getenv("SWIFT_USER")
+	swiftApiKey := os.Getenv("SWIFT_API_KEY")
+	swiftAuthUrl := os.Getenv("SWIFT_AUTH_URL")
+	swiftContainer := os.Getenv("SWIFT_CONTAINER")
 
 	var database db.DB
 	if len(pgConnection) > 0 {
@@ -131,8 +109,21 @@ func getSwiftConnection(user, apiKey, url string) *swift.Connection {
 		AuthUrl:  url,
 	}
 
-	if err := conn.Authenticate(); err != nil {
-		log.Fatal(err)
+	var lastError error
+	for i := 0; i < 20; i++ {
+		if err := conn.Authenticate(); err != nil {
+			lastError = err
+			log.Println("WAIT swift:", err, "(", user, apiKey, url, ")")
+		} else {
+			lastError = nil
+			break
+		}
+
+		time.Sleep(time.Second * 5)
+	}
+
+	if lastError != nil {
+		log.Fatal(lastError)
 	}
 
 	return &conn

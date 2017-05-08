@@ -1,0 +1,76 @@
+version: '3'
+
+services:
+  invitro:
+    build: .
+    environment:
+      # DEFAULT DATABASE (Clear that parameter if you want use mongoDB)
+      PG_CONN: host=pg port=5432 user=postgres dbname=postgres sslmode=disable
+      PG_SCHEMA: invitro
+      # ALTERNATIVE DATABASE
+      MONGO_ADDRESS: mongo:27017
+      MONGO_DBNAME: invitro
+      # FILES STORAGE
+      SWIFT_USER: test:tester
+      SWIFT_API_KEY: testing
+      SWIFT_AUTH_URL: http://swift:8080/auth/v1.0
+      SWIFT_CONTAINER: swift
+    links:
+      - pg
+      - swift
+      - mongo
+    depends_on:
+      - swift
+      - pg
+      - mongo
+
+  mongo:
+    image: "mongo:3.4.2"
+    depends_on:
+     - invitro_data
+    volumes:
+      - "/var/mongodata:/data/db"
+    links:
+      - invitro_data
+    ports:
+        - "27017:27017"
+    expose:
+      - 27017
+
+  pg:
+    image: "postgres:9.6.2"
+    restart: always
+    environment:
+      PGDATA: /var/pgdata
+      POSTGRES_INITDB_ARGS: --data-checksums --encoding=UTF-8
+    depends_on:
+     - invitro_data
+    links:
+      - invitro_data
+    ports:
+      - "5432:5432"
+    expose:
+      - 5432
+
+  swift:
+    image: "morrisjobke/docker-swift-onlyone"
+    restart: always
+    depends_on:
+     - invitro_data
+    links:
+      - invitro_data
+    ports:
+      - "8080:8080"
+    environment:
+      SWIFT_TEMP_URL_KEY: testing
+    expose:
+      - 8080
+
+  invitro_data:
+    image: "busybox"
+    restart: always
+    container_name: "INVITRO_DATA"
+    volumes:
+      - "/srv"
+      - "/var/pgdata"
+      - "/var/mongodata"
