@@ -86,13 +86,18 @@ func (p Page) Nodes(rule ...*Rule) []*Node {
 		p.Parse()
 	}
 
+	return Nodes(p.Root, rule...)
+}
+
+func Nodes(root *Node, rule ...*Rule) []*Node {
+
 	results := make([][]*Node, len(rule), len(rule))
 
 	for ruleIndex, ruleValue := range rule {
 		ruleResults := make([]*Node, 0, 5)
 
 		if ruleIndex == 0 {
-			ruleResults = find(p.Root, ruleValue)
+			ruleResults = find(root, ruleValue)
 		} else {
 			parentsList := results[ruleIndex-1]
 			if len(parentsList) > 0 {
