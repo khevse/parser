@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
 
 	"io/ioutil"
 	"net/http"
@@ -13,7 +15,10 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
-var httpClient = new(http.Client)
+var (
+	httpClient   = new(http.Client)
+	muHttpClient sync.RWMutex
+)
 
 type Page struct {
 	Req    *http.Request
@@ -31,35 +36,62 @@ func New(req *http.Request) *Page {
 func (p *Page) Download() error {
 	p.Data = nil
 
+	var (
+		tries     int
+		lastError error
+	)
+
 	client := p.Client
-	if client == nil {
-		client = httpClient
+
+	for {
+		tries++
+
+		if tries > 5 {
+			break
+		}
+
+		if client == nil {
+			muHttpClient.RLock()
+			client = httpClient
+			muHttpClient.RUnlock()
+		} else if tries > 1 {
+			time.Sleep(time.Second * 5)
+
+			muHttpClient.Lock()
+			httpClient = new(http.Client)
+			client = httpClient
+			muHttpClient.Unlock()
+		}
+
+		resp, err := client.Do(p.Req)
+		if err != nil {
+			return errors.New(fmt.Sprintf("Failed get url '%s': %s", p.Req.URL.String(), err.Error()))
+		}
+		defer resp.Body.Close()
+
+		ct := resp.Header.Get("Content-Type")
+		if pos := strings.Index(ct, ";"); pos != -1 {
+			ct = string([]rune(ct)[:pos])
+		}
+
+		utf8, err := charset.NewReader(resp.Body, ct)
+		if err != nil {
+			lastError = errors.New(fmt.Sprintf("Failed decode result of the page '%s': %s", p.Req.URL.String(), err.Error()))
+			continue
+		}
+
+		body, err := ioutil.ReadAll(utf8)
+		if err != nil {
+			lastError = errors.New(fmt.Sprintf("Failed read body of the page '%s': %s", p.Req.URL.String(), err.Error()))
+			continue
+		}
+
+		p.Data = body
+		lastError = nil
+		break
 	}
 
-	resp, err := client.Do(p.Req)
-	if err != nil {
-		return errors.New(fmt.Sprintf("Failed get url '%s': %s", p.Req.URL.String(), err.Error()))
-	}
-	defer resp.Body.Close()
-
-	ct := resp.Header.Get("Content-Type")
-	if pos := strings.Index(ct, ";"); pos != -1 {
-		ct = string([]rune(ct)[:pos])
-	}
-
-	utf8, err := charset.NewReader(resp.Body, ct)
-	if err != nil {
-		return errors.New(fmt.Sprintf("Failed decode result of the page '%s': %s", p.Req.URL.String(), err.Error()))
-	}
-
-	body, err := ioutil.ReadAll(utf8)
-	if err != nil {
-		return errors.New(fmt.Sprintf("Failed read body of the page '%s': %s", p.Req.URL.String(), err.Error()))
-	}
-
-	p.Data = body
-
-	return nil
+	return lastError
 }
 
 func (p Page) Tokenizer() *html.Tokenizer {
