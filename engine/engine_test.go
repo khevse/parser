@@ -65,46 +65,48 @@ func (t *TOCItem) GetChildren() []ITarget {
 
 func TestEngine(t *testing.T) {
 
-	toc := make([]ITOCItem, 0)
-	for i := 0; i < COUNT_TOC_ITEMS; i++ {
-		toc = append(toc, &TOCItem{
-			Id:  i,
-			Url: "/i" + strconv.Itoa(i),
-		})
-	}
+	for _, countTocItems := range []int{0, 1, 10, 100, COUNT_TOC_ITEMS} {
 
-	tocHandler := func(url string) ([]ITOCItem, error) {
-		return toc, nil
-	}
+		toc := make([]ITOCItem, 0)
+		for i := 0; i < countTocItems; i++ {
+			toc = append(toc, &TOCItem{
+				Id:  i,
+				Url: "/i" + strconv.Itoa(i),
+			})
+		}
 
-	d := new(workers.Dispatcher)
-	d.Run()
-	defer d.Close()
+		tocHandler := func(url string) ([]ITOCItem, error) {
+			return toc, nil
+		}
 
-	e, err := NewEngine("http://example.com", d)
-	if err != nil {
-		t.Error(err)
-	} else if res, err := e.Parse(tocHandler); err != nil {
-		t.Error(err)
-	} else {
-		var count int
-		for item := range res {
-			target := item.(*Target)
+		d := new(workers.Dispatcher)
+		d.Run()
+		defer d.Close()
 
-			tartgetUrl := "http://example.com/i" + strconv.Itoa(target.ParantId) + "/t" + strconv.Itoa(target.Id)
+		e, err := NewEngine("http://example.com", d)
+		if err != nil {
+			t.Error(err)
+		} else if res, err := e.Parse(tocHandler); err != nil {
+			t.Error(err)
+		} else {
+			var count int
+			for item := range res {
+				target := item.(*Target)
 
-			if target.DescUrl != tartgetUrl {
-				t.Errorf("'%s' != '%s'", tartgetUrl, target.DescUrl)
+				tartgetUrl := "http://example.com/i" + strconv.Itoa(target.ParantId) + "/t" + strconv.Itoa(target.Id)
+
+				if target.DescUrl != tartgetUrl {
+					t.Errorf("'%s' != '%s'", tartgetUrl, target.DescUrl)
+				}
+
+				count++
 			}
 
-			count++
-		}
-
-		if count != COUNT_TOC_ITEMS*COUNT_TARGETS {
-			t.Error("Fail:", count)
+			if count != countTocItems*COUNT_TARGETS {
+				t.Error("Fail:", count)
+			}
 		}
 	}
-
 }
 
 func BenchmarkEngine(b *testing.B) {

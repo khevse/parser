@@ -1,6 +1,10 @@
 package engine
 
-import "github.com/khevse/parser/workers"
+import (
+	"sync"
+
+	"github.com/khevse/parser/workers"
+)
 
 type taskTOCItem struct {
 	workers.Doer
@@ -8,11 +12,13 @@ type taskTOCItem struct {
 	URL     string
 	TOCItem ITOCItem
 	Result  chan<- interface{}
+	wg      *sync.WaitGroup
 }
 
 func (t *taskTOCItem) Do() {
 	t.TOCItem.SetChildren(t.URL)
 	t.Result <- t.TOCItem
+	t.wg.Done()
 }
 
 type taskTarget struct {
@@ -21,9 +27,11 @@ type taskTarget struct {
 	URL    string
 	Target ITarget
 	Result chan<- interface{}
+	wg     *sync.WaitGroup
 }
 
 func (t *taskTarget) Do() {
 	t.Target.SetDescription(t.URL)
 	t.Result <- t.Target
+	t.wg.Done()
 }

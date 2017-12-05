@@ -50,11 +50,11 @@ func (e *Engine) Parse(tocHandler TOCHandler) (retvalChan <-chan ITarget, retval
 	go func() {
 		wg := new(sync.WaitGroup)
 
-		for item := range e.parseTOCItems(items).GetData() {
+		for item := range e.parseTOCItems(wg, items).GetData() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				for target := range e.parseTargets(item.(ITOCItem)).GetData() {
+				for target := range e.parseTargets(wg, item.(ITOCItem)).GetData() {
 					channel <- target.(ITarget)
 				}
 			}()
@@ -67,7 +67,7 @@ func (e *Engine) Parse(tocHandler TOCHandler) (retvalChan <-chan ITarget, retval
 	return
 }
 
-func (e *Engine) parseTargets(tocItem ITOCItem) *buffer {
+func (e *Engine) parseTargets(wg *sync.WaitGroup, tocItem ITOCItem) *buffer {
 
 	var list []ITarget = tocItem.GetChildren()
 
@@ -76,6 +76,8 @@ func (e *Engine) parseTargets(tocItem ITOCItem) *buffer {
 	if len(list) == 0 {
 		return buf
 	}
+
+	wg.Add(len(list))
 
 	go func() {
 		d := e.dispatcher
@@ -86,6 +88,7 @@ func (e *Engine) parseTargets(tocItem ITOCItem) *buffer {
 				URL:    e.childURL(href),
 				Target: item,
 				Result: buf.Queue,
+				wg:     wg,
 			}
 			d.JobQueue <- &val
 		}
@@ -94,12 +97,14 @@ func (e *Engine) parseTargets(tocItem ITOCItem) *buffer {
 	return buf
 }
 
-func (e *Engine) parseTOCItems(list []ITOCItem) *buffer {
+func (e *Engine) parseTOCItems(wg *sync.WaitGroup, list []ITOCItem) *buffer {
 
 	buf := newBuffer(len(list))
 	if len(list) == 0 {
 		return buf
 	}
+
+	wg.Add(len(list))
 
 	go func() {
 		d := e.dispatcher
@@ -109,6 +114,7 @@ func (e *Engine) parseTOCItems(list []ITOCItem) *buffer {
 				URL:     e.childURL(href),
 				TOCItem: item,
 				Result:  buf.Queue,
+				wg:      wg,
 			}
 			d.JobQueue <- &val
 		}
